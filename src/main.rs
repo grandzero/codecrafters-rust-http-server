@@ -3,8 +3,8 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 mod parse_file;
 mod parse_headers;
-use parse_file::read_file_and_return_content;
 use parse_file::FileErrors;
+use parse_file::{create_file, read_file_and_return_content};
 use parse_headers::{parse_headers, Headers};
 // use std::env::args;
 // use std::process;
@@ -20,6 +20,7 @@ impl Length for FileErrors {
 
 trait FindHeader {
     fn find_header(&self, header: &str) -> Option<String>;
+    fn get_body(&self) -> Option<String>;
 }
 
 impl FindHeader for Vec<Headers> {
@@ -46,6 +47,33 @@ impl FindHeader for Vec<Headers> {
                         return Some(val.to_string());
                     }
                 }
+                Headers::Body(val) => {
+                    if header == "Body" {
+                        return Some(val.to_string());
+                    }
+                }
+                Headers::AcceptEncoding(val) => {
+                    if header == "Accept-Encoding" {
+                        return Some(val.to_string());
+                    }
+                }
+                Headers::Protocol(val) => {
+                    if header == "Protocol" {
+                        return Some(val.to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn get_body(&self) -> Option<String> {
+        for h in self {
+            match h {
+                Headers::Body(val) => {
+                    return Some(val.to_string());
+                }
+                _ => (),
             }
         }
         None
@@ -54,8 +82,10 @@ impl FindHeader for Vec<Headers> {
 
 fn handle_client(mut stream: TcpStream, directory: String) {
     //println!("Incoming request from: {}", stream.peer_addr().unwrap());
-    let mut buffer = [0; 1024];
-    stream.read(&mut buffer).unwrap();
+    let mut raw_buffer = [0; 1024];
+    let buffer;
+    let size = stream.read(&mut raw_buffer).unwrap();
+    buffer = &raw_buffer[..size];
     let request_details_as_str = String::from_utf8_lossy(&buffer[..]);
     let request_lines = request_details_as_str.split("\r\n");
     let query_param;
@@ -103,25 +133,58 @@ fn handle_client(mut stream: TcpStream, directory: String) {
                 query_param = request_original_details[1]
                     .split("/files/")
                     .collect::<Vec<&str>>()[1];
-                println!("Filename : {}", query_param);
-                match read_file_and_return_content(query_param, &directory) {
-                    Ok(content) => {
-                        let head = format!(
+                if request_original_details[0] == "GET" {
+                    println!("Filename : {}", query_param);
+                    match read_file_and_return_content(query_param, &directory) {
+                        Ok(content) => {
+                            let head = format!(
                             "HTTP/1.1 200 OK\r\nContent-Type:application/octet-stream\r\nContent-Disposition: attachment; filename=\"{}\"\r\nContent-Length: {}\r\n\r\n",
                             query_param,
                             content.len(),
                         );
-                        stream.write_all(head.as_bytes()).unwrap();
-                        stream.write_all(&content).unwrap();
-                        return;
-                    }
-                    Err(e) => {
-                        format!(
+                            stream.write_all(head.as_bytes()).unwrap();
+                            stream.write_all(&content).unwrap();
+                            return;
+                        }
+                        Err(e) => {
+                            format!(
                             "HTTP/1.1 404 OK\r\nContent-Type:text/plain\r\nContent-Length: {}\r\n\r\n{}",
                             e.get_length(),
                             e
                         )
+                        }
                     }
+                } else if request_original_details[0] == "POST" {
+                    let body;
+                    body = match headers.get_body() {
+                        Some(str_result) => str_result,
+                        None => "".to_owned(),
+                    };
+
+                    let resp = match create_file(query_param, &directory, &body) {
+                        Ok(_) => {
+                            format!(
+                            "HTTP/1.1 201 OK\r\nContent-Type:text/plain\r\nContent-Length: {}\r\n\r\n{}",
+                            "Created".len(),
+                            "Created"
+                        )
+                        }
+                        Err(e) => {
+                            format!(
+                            "HTTP/1.1 404 OK\r\nContent-Type:text/plain\r\nContent-Length: {}\r\n\r\n{}",
+                            e.get_length(),
+                            e
+                            )
+                        }
+                    };
+                    stream.write_all(resp.as_bytes()).unwrap();
+                    return;
+                } else {
+                    format!(
+                        "HTTP/1.1 404 OK\r\nContent-Type:text/plain\r\nContent-Length: {}\r\n\r\n{}",
+                        "Not Found".len(),
+                        "Not Found"
+                    )
                 }
             } else {
                 "HTTP/1.1 404 NOT FOUND\r\nContent-Type:text/plain\r\n\r\nContent-Length: 9\r\n\r\nNot Found".to_string()

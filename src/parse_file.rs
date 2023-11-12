@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::io::Write;
 use std::{fs::File, io::Read};
 pub enum FileErrors {
     FileNotFound,
@@ -31,6 +32,19 @@ pub fn read_file_and_return_content(
                 return Ok(contents);
             }
             Err(FileErrors::UnableToReadFile)
+        }
+        Err(_) => Err(FileErrors::FileNotFound),
+    }
+}
+
+pub fn create_file(filename: &str, directory: &str, content: &str) -> Result<(), FileErrors> {
+    match File::create(format!("{}/{}", directory, filename)) {
+        Ok(mut f) => {
+            match f.write_all(content.as_bytes()) {
+                Ok(_) => (),
+                Err(_) => return Err(FileErrors::UnableToReadFile),
+            }
+            Ok(())
         }
         Err(_) => Err(FileErrors::FileNotFound),
     }
