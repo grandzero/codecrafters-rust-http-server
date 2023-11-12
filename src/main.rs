@@ -21,6 +21,8 @@ fn handle_client(mut stream: TcpStream) {
                     query_param
                 );
                 stream.write_all(response.as_bytes()).unwrap();
+            } else if request_original_details[1] == "/" {
+                stream.write_all(b"HTTP/1.1 200 OK").unwrap();
             } else {
                 stream
                     .write_all(b"HTTP/1.1 404 NOT FOUND\r\nContent-Type:text/plain\r\n\r\nContent-Length: 9\r\n\r\nNot Found ")
