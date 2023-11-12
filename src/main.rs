@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 mod parse_headers;
 use parse_headers::{parse_headers, Headers};
-
+use std::thread;
 trait FindHeader {
     fn find_header(&self, header: &str) -> Option<String>;
 }
@@ -105,7 +105,7 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(mut _stream) => {
-                handle_client(_stream);
+                thread::spawn(|| handle_client(_stream));
             }
             Err(e) => {
                 println!("error: {}", e);
