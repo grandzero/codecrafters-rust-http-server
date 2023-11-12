@@ -1,5 +1,42 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+mod parse_headers;
+use parse_headers::{parse_headers, Headers};
+
+trait FindHeader {
+    fn find_header(&self, header: &str) -> Option<String>;
+}
+
+impl FindHeader for Vec<Headers> {
+    fn find_header(&self, header: &str) -> Option<String> {
+        for h in self {
+            match h {
+                Headers::UserAgent(val) => {
+                    if header == "User-Agent" {
+                        return Some(val.to_string());
+                    }
+                }
+                Headers::ContentType(val) => {
+                    if header == "Content-Type" {
+                        return Some(val.to_string());
+                    }
+                }
+                Headers::ContentLength(val) => {
+                    if header == "Content-Length" {
+                        return Some(val.to_string());
+                    }
+                }
+                Headers::Host(val) => {
+                    if header == "Host" {
+                        return Some(val.to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
 fn handle_client(mut stream: TcpStream) {
     //println!("Incoming request from: {}", stream.peer_addr().unwrap());
     let mut buffer = [0; 1024];
@@ -8,10 +45,12 @@ fn handle_client(mut stream: TcpStream) {
     let request_lines = request_details_as_str.split("\r\n");
     let query_param;
     let response: String;
+    let headers = parse_headers(request_details_as_str.as_ref());
+    // println!("Headers:{:?}", headers);
     match request_lines.clone().next() {
         Some(request_line) => {
             let request_original_details: Vec<&str> = request_line.split(" ").collect();
-            println!("Request details:{:?}", request_original_details);
+            //  println!("Request details:{:?}", request_original_details);
 
             response = if request_original_details[1].contains("/echo/") {
                 query_param = request_original_details[1]
@@ -22,21 +61,24 @@ fn handle_client(mut stream: TcpStream) {
                     query_param.len(),
                     query_param
                 )
-
-                // if request_original_details[1].starts_with("/echo/") {
-                //     let query_param = request_original_details[1]
-                //         .split("/echo/")
-                //         .collect::<Vec<&str>>()[1];
-                //     println!("Query param:{}", query_param);
-                //     //response = format!("HTTP/1.1 200 OK\r\nContent-Type:text/plain\r\nContent-Length: {}\r\n\r\n{}", query_param.len(), query_param).as_str();
-                // } else if request_original_details[1] == "/" {
-                //     response =
-                //         "HTTP/1.1 200 OK\r\nContent-Type:text/plain\r\nContent-Length: 0\r\n";
-                // } else {
-                //     response = "HTTP/1.1 404 NOT FOUND\r\nContent-Type:text/plain\r\n\r\nContent-Length: 9\r\n\r\nNot Found";
-                // }
+            } else if request_original_details[1].contains("/user-agent") {
+                match headers.find_header("User-Agent") {
+                    Some(str_result) => {
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type:text/plain\r\nContent-Length: {}\r\n\r\n{}",
+                            str_result.len(),
+                            str_result
+                        )
+                    }
+                    None => {
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type:text/plain\r\nContent-Length: {}\r\n\r\n{}",
+                            "Not Found".len(),
+                            "Not Found"
+                        )
+                    }
+                }
             } else if request_original_details[1] == "/" {
-                println!("Entered empty path");
                 format!(
                     "HTTP/1.1 200 OK\r\nContent-Type:text/plain\r\nContent-Length: {}\r\n\r\n{}",
                     "Hello".len(),
@@ -45,7 +87,7 @@ fn handle_client(mut stream: TcpStream) {
             } else {
                 "HTTP/1.1 404 NOT FOUND\r\nContent-Type:text/plain\r\n\r\nContent-Length: 9\r\n\r\nNot Found".to_string()
             };
-            println!("Response:{}", response);
+            // println!("Response:{}", response);
             stream.write(response.as_bytes()).unwrap();
         }
         None => {
