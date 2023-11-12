@@ -23,7 +23,9 @@ fn handle_client(mut stream: TcpStream) {
                 stream.write_all(response.as_bytes()).unwrap();
             } else if request_original_details[1] == "/" {
                 stream
-                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Type:text/plain\r\nContent-Length: 0")
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Type:text/plain\r\nContent-Length: 0\r\n",
+                    )
                     .unwrap();
             } else {
                 stream
