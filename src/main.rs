@@ -84,6 +84,12 @@ fn handle_client(mut stream: TcpStream) {
                     "Hello".len(),
                     "Hello"
                 )
+            } else if request_original_details[1].contains("/files/") {
+                query_param = request_original_details[1]
+                    .split("/echo/")
+                    .collect::<Vec<&str>>()[1];
+                println!("Query param:{}", query_param);
+                query_param.to_owned()
             } else {
                 "HTTP/1.1 404 NOT FOUND\r\nContent-Type:text/plain\r\n\r\nContent-Length: 9\r\n\r\nNot Found".to_string()
             };
