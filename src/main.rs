@@ -37,7 +37,7 @@ fn handle_client(mut stream: TcpStream) {
                 // }
             } else if request_original_details[1] == "/" {
                 println!("Entered empty path");
-                "HTTP/1.1 200 OK\r\n".to_string()
+                "HTTP/1.1 200 OK".to_string()
             } else {
                 "HTTP/1.1 404 NOT FOUND\r\nContent-Type:text/plain\r\n\r\nContent-Length: 9\r\n\r\nNot Found".to_string()
             };
